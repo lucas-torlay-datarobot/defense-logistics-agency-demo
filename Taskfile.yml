@@ -1,0 +1,27 @@
+---
+version: '3'
+dotenv: ['.env']
+tasks:
+  default:
+    silent: true
+    cmds: ['task --list']
+  install:
+    desc: Install prediction dependencies
+    cmds: ['uv sync --project prediction --extra dev']
+  prediction:prepare:
+    desc: Validate sources and build features without starting cloud training
+    cmds: ['uv run --project prediction python scripts/provision_demo_models.py --dry-run']
+  prediction:train:
+    desc: Run Autopilot and rank shortage models
+    cmds: ['uv run --project prediction python scripts/provision_demo_models.py']
+  prediction:deploy:
+    desc: Deploy the selected model only after baseline gates pass
+    cmds: ['uv run --project prediction python scripts/provision_demo_models.py --deploy']
+  test:
+    desc: Run prediction tests without cloud credentials
+    cmds: ['uv run --project prediction --extra dev python -m pytest prediction/tests -q']
+  lint:
+    desc: Check Python formatting and lint
+    cmds:
+      - uv run --project prediction --extra dev ruff check prediction scripts
+      - uv run --project prediction --extra dev ruff format --check prediction scripts

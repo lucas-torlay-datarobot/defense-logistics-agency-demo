@@ -1,0 +1,10 @@
+{
+  "warmup_days": 60,
+  "validation_days": 60,
+  "test_days": 45,
+  "autopilot_mode": "quick",
+  "workers": 2,
+  "top_models": 5,
+  "review_fraction": 0.1,
+  "max_wait": 7200
+}
