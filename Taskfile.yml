@@ -25,3 +25,23 @@ tasks:
     cmds:
       - uv run --project prediction --extra dev ruff check prediction scripts
       - uv run --project prediction --extra dev ruff format --check prediction scripts
+
+  app:install:
+    desc: Install app dependencies into the existing isolated DLA environment
+    cmds:
+      - ./.venv-dla/bin/python -I -m pip install -e './prediction[dev]' -e ./agent -e './fastapi_server[dev]'
+      - npm --prefix frontend_web ci
+  app:build:
+    desc: Build the React console
+    cmds: ['npm --prefix frontend_web run build']
+  app:prepare:
+    desc: Prepare and score an existing run (task app:prepare RUN_DIR=artifacts/prediction/...)
+    requires:
+      vars: [RUN_DIR]
+    cmds: ['./.venv-dla/bin/python -I scripts/prepare_app_data.py --run-dir {{.RUN_DIR}} --score']
+  app:run:
+    desc: Serve built React app and API on localhost port 8080
+    cmds: ['./.venv-dla/bin/python -I scripts/run_app.py']
+  app:test:
+    desc: Test app and agent without cloud credentials
+    cmds: ['./.venv-dla/bin/python -I -m pytest fastapi_server/tests -q']

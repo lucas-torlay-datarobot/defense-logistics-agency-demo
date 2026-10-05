@@ -1,6 +1,18 @@
 # Defense Logistics Agency demo
 
-A prediction → agent with memory → application demonstration using real PUB LOG catalog identifiers and **explicitly synthetic operational history**. The initial implementation is the prediction foundation. Agent and UI work will follow the VA clinic scheduling application's structure and visual conventions.
+A prediction → agent with memory → application demonstration using real PUB LOG catalog identifiers and **explicitly synthetic operational history**. The repository now includes the prediction pipeline, a React operations console based on the VA clinic scheduling interface, and a natural-language data agent with persistent memory.
+
+
+## Agent and React application
+
+**Already finished training? [Start here: app quickstart](docs/app/quickstart.md).** Reuse your current `.venv-dla` and prediction run. The app can score the latest day with the selected DataRobot model without retraining or first deploying it.
+
+- VA-style console with inventory, orders, shortage watchlist, historical shortage incidence, and a docked assistant.
+- Adaptable natural-language questions → validated read-only SQL → inspectable data and narrative, using a separately configured DataRobot LLM deployment.
+- Persistent conversations and explicitly saved preferences; evidence saved to a human review queue.
+- Visible synthetic-data labels, dataset/version provenance, model evaluation, and honest missing-score states.
+
+See [architecture and limits](docs/app/architecture.md). The app runs in your Codespace; no hosted application or LLM deployment is created automatically.
 
 ## What this release predicts
 
@@ -38,13 +50,13 @@ With one matching synthetic dataset pair, IDs are discovered automatically in `D
 First prepare the features without creating training resources:
 
 ```bash
-python scripts/provision_demo_models.py --dry-run
+./.venv-dla/bin/python -I scripts/provision_demo_models.py --dry-run
 ```
 
 Then train and rank models:
 
 ```bash
-python scripts/provision_demo_models.py
+./.venv-dla/bin/python -I scripts/provision_demo_models.py
 ```
 
 The script prints the run directory and DataRobot project ID. Inspect that experiment in the DataRobot UI and the generated `evaluation.json` and `model_ranking.csv`. Training may take a while; rerun the same command after interruption to resume recorded work. Do not start concurrent copies from different checkouts.
@@ -52,7 +64,7 @@ The script prints the run directory and DataRobot project ID. Inspect that exper
 For deployment, set `DLA_PREDICTION_ENVIRONMENT_ID` to the intended environment ID, then:
 
 ```bash
-python scripts/provision_demo_models.py --deploy
+./.venv-dla/bin/python -I scripts/provision_demo_models.py --deploy
 ```
 
 This resumes the same run and deploys only when the selected model beats the documented baselines. It does **not** silently choose a runner-up using final-test results. The evaluated model is deployed without a full-data refit, so its artifact remains the one tested. If gates fail, reports remain available and no deployment is created.
@@ -60,7 +72,7 @@ This resumes the same run and deploys only when the selected model beats the doc
 Score the latest day (substitute the run directory printed above):
 
 ```bash
-python scripts/score_demo.py --run-dir artifacts/prediction/YOUR_RUN_ID
+./.venv-dla/bin/python -I scripts/score_demo.py --run-dir artifacts/prediction/YOUR_RUN_ID
 ```
 
 The output is a `SYNTHETIC_risk_YYYY-MM-DD.csv` ranked by shortage probability. The deployment ID comes from that run's saved state. No synthetic fallback probabilities are substituted when the deployment is unavailable.
