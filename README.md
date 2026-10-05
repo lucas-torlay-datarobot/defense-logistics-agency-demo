@@ -22,9 +22,14 @@ The terminal prepares data on **Codespace compute**. SDK requests submit trainin
 ```bash
 git clone https://github.com/lucas-torlay-datarobot/defense-logistics-agency-demo.git
 cd defense-logistics-agency-demo
+python -m venv .venv-dla
+source .venv-dla/bin/activate
+python -m pip install --upgrade pip
 python -m pip install -e './prediction[dev]'
 cp .env.example .env
 ```
+
+The project-specific `.venv-dla` keeps these dependencies separate from the Codespace notebook kernel. Activate it again in each new terminal with `source .venv-dla/bin/activate`. Python 3.13 requires compatible scikit-learn/joblib versions; the package declares explicit minimum versions to avoid older joblib importing the removed `distutils` module.
 
 Use your Codespace's existing DataRobot authentication. If authentication is not available in its terminal, configure `DATAROBOT_ENDPOINT` and `DATAROBOT_API_TOKEN` through Codespace secrets or the untracked `.env`. Never commit a token. Set your tenant endpoint, not an assumed public-cloud URL.
 
