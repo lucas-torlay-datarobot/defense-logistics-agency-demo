@@ -74,13 +74,22 @@ export async function api<T>(
 ): Promise<T> {
   const response = await fetch(new URL(`api/v1/${path}`, document.baseURI), {
     method: method || (body === undefined ? "GET" : "POST"),
+    credentials: "same-origin",
     headers: {
-      Authorization: `Bearer ${token}`,
+      // The DataRobot port-forwarding proxy owns platform authentication. Keep
+      // this workspace's access token out of its Authorization header.
+      "X-DLA-App-Token": token,
+      Accept: "application/json",
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!response.ok) {
+    if (response.status === 428) {
+      throw new Error(
+        "The forwarded request returned HTTP 428. Reopen the app using the current DataRobot Exposed ports link and retry. If this persists, inspect the failed request's response in your browser's Network tab.",
+      );
+    }
     const payload = await response.json().catch(() => ({}));
     throw new Error(
       typeof payload.detail === "string"

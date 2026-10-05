@@ -12,7 +12,7 @@ from dla_agent.service import Agent, DataRobotLLM
 from fastapi.testclient import TestClient
 
 TOKEN = "test-token-at-least-24-characters"
-AUTH = {"Authorization": f"Bearer {TOKEN}"}
+AUTH = {"X-DLA-App-Token": TOKEN}
 
 
 class Unconfigured:
@@ -295,3 +295,21 @@ def test_external_access_disabled_at_engine_level(prepared):
             con.execute("SELECT * FROM read_csv('/etc/passwd')")
         with pytest.raises(duckdb.InvalidInputException):
             con.execute("SET enable_external_access=true")
+
+
+def test_app_token_independent_of_platform_authorization(prepared):
+    _, output = prepared
+    client = TestClient(create_app(output, TOKEN, Unconfigured()))
+    # DataRobot may forward an unrelated platform credential. It cannot log into the app.
+    assert (
+        client.get("/api/v1/catalog", headers={"Authorization": f"Bearer {TOKEN}"}).status_code
+        == 401
+    )
+    assert (
+        client.get("/api/v1/catalog", headers={"X-DLA-App-Token": "wrong-token"}).status_code == 401
+    )
+    forwarded = {**AUTH, "Authorization": "Bearer platform-session-credential"}
+    response = client.get("/api/v1/catalog", headers=forwarded)
+    assert response.status_code == 200
+    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert client.post("/api/v1/sessions", headers=forwarded, json={}).status_code == 200

@@ -53,9 +53,10 @@ def create_app(data_dir=None, token=None, llm=None):
     llm = llm or DataRobotLLM()
     agent = Agent(query, memory, llm)
 
-    def authorize(authorization: str = Header(default="")):
-        supplied = authorization.removeprefix("Bearer ")
-        if not secrets.compare_digest(supplied.encode(), token.encode()):
+    def authorize(x_dla_app_token: str = Header(default="", alias="X-DLA-App-Token")):
+        # Authorization belongs to the hosting platform, which may inspect or replace it
+        # before forwarding the request. Authenticate this app independently.
+        if not secrets.compare_digest(x_dla_app_token.encode(), token.encode()):
             raise HTTPException(401, "Enter the app access token configured on the server")
 
     app = FastAPI(
@@ -67,7 +68,7 @@ def create_app(data_dir=None, token=None, llm=None):
     async def headers(request, call_next):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'"
         )

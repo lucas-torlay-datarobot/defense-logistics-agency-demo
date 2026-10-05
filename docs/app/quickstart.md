@@ -70,7 +70,7 @@ Generate an app access token in your terminal, then put the result in `DLA_APP_A
 ./.venv-dla/bin/python -I -c 'import secrets; print(secrets.token_urlsafe(32))'
 ```
 
-The app access token is **not** your DataRobot API token. Only enter the app access token in the browser. DataRobot credentials remain in the Python server. The LLM adapter expects the explicit environment variables above, even if the predictive SDK can authenticate from a separate SDK configuration file.
+Browser requests send the app access token in `X-DLA-App-Token`, leaving DataRobot platform authentication and same-origin session cookies intact. The app access token is **not** your DataRobot API token. Only enter the app access token in the browser. DataRobot credentials remain in the Python server. The LLM adapter expects the explicit environment variables above, even if the predictive SDK can authenticate from a separate SDK configuration file.
 
 The server uses the documented OpenAI-compatible endpoint:
 `{DATAROBOT_ENDPOINT}/deployments/{DLA_LLM_DEPLOYMENT_ID}/chat/completions`.
@@ -84,7 +84,7 @@ Official API reference: [DataRobot LLM providers](https://docs.datarobot.com/en/
 ./.venv-dla/bin/python -I scripts/run_app.py --host 0.0.0.0 --port 8080
 ```
 
-Open your Codespace's forwarded/preview URL for port **8080 in a new tab**. Paste `DLA_APP_ACCESS_TOKEN` on the welcome screen. Keep this terminal running. The token is stored in browser session storage; locking the workspace clears it. The UI and API share one port. Binding `0.0.0.0` permits Codespace port forwarding; use the default localhost binding for local-only access.
+In **Session Environment → Exposed ports**, add port **8080** if it is missing (DataRobot requires the session to be stopped while changing exposed ports), then restart the session and run the server command above. Click **Link** beside port **8080** to open the app in a new tab. Paste `DLA_APP_ACCESS_TOKEN` on the welcome screen. Keep this terminal running. The token is stored in browser session storage; locking the workspace clears it. The UI and API share one port. Binding `0.0.0.0` permits Codespace port forwarding; use the default localhost binding for local-only access.
 
 Start with these questions:
 
@@ -112,6 +112,7 @@ This commit provides the runnable Codespace application. It does not create a ho
 
 ## Troubleshooting
 
+- **Browser shows HTTP 428:** older app builds put the app token in the platform's `Authorization` header. Pull the latest code, rebuild React, restart the Python process and hard-refresh the browser. Keep the existing app token. If 428 persists, reopen the current exposed-port link and inspect the failed request path/status/response in browser Developer Tools → Network. Share only those details, never tokens or cookies; a 428 alone does not identify the platform's exact precondition.
 - **No probability values:** run preparation with `--score`. Training success alone does not populate current app scores.
 - **LLM HTTP 401/403:** check the server token, tenant, and deployment access. **404/405:** confirm this is a chat-capable LLM deployment and the endpoint ends in `/api/v2`.
 - **SQL rejected:** queries are intentionally limited to the five published tables and safe analytical functions; external files, recursive queries, writes, and administrative functions are unavailable. Narrow the question or inspect the schema under Explore.

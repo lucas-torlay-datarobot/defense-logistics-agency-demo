@@ -31,7 +31,7 @@ As-of date is the latest completed scenario date. The initial release serves one
 
 ## Persistence and deployment boundary
 
-The app is single-user. All users of the shared app access token share the same conversations and memories; the token is not an identity system. The browser only receives that app token and public-to-this-workspace evidence, never the DataRobot API token. DataRobot LLM and SDK calls originate server-side. No CORS access is enabled. React renders data as escaped text, never model-authored HTML. CSV exports escape formula-like cells.
+The app is single-user. All users of the shared app access token share the same conversations and memories; the token is not an identity system. The browser only receives that app token and public-to-this-workspace evidence, never the DataRobot API token. Browser-to-app requests use `X-DLA-App-Token` and same-origin cookies, so the Codespace forwarding proxy can use its own platform authentication without interpreting the app token as a DataRobot bearer token. Server-side DataRobot LLM and SDK calls still use DataRobot credentials as required. No CORS access is enabled. React renders data as escaped text, never model-authored HTML. CSV exports escape formula-like cells.
 
 Before shared hosting, add trusted per-user identity and authorization to every data, conversation, memory and review access; migrate memory to a durable service with those scopes; package the snapshot refresh job; and choose a hosted application environment. Do not expose a shared token as a substitute for multi-user access control. The current API requires a secret even for localhost development and the run script defaults to localhost.
 
