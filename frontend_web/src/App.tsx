@@ -2,14 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity,
   ArrowUpRight,
-  Bot,
   Boxes,
   ChevronRight,
   Database,
   LayoutDashboard,
   LogOut,
   Moon,
-  PackageSearch,
   Play,
   ShieldCheck,
   Sparkles,
@@ -18,14 +16,12 @@ import {
   BookmarkCheck,
   Brain,
   Trash2,
-  LoaderCircle,
   KeyRound,
 } from "lucide-react";
 import {
   access,
   api,
   depot,
-  literal,
   number,
   query,
   type Catalog,
@@ -36,7 +32,8 @@ import {
   type SavedMemory,
 } from "./api";
 import AgentPanel from "./components/AgentPanel";
-import { DataTable, Evidence } from "./components/Evidence";
+import RegisterPanel from "./components/RegisterPanel";
+import { Evidence } from "./components/Evidence";
 
 type Tab =
   "overview" | "inventory" | "orders" | "explorer" | "reviews" | "memory";
@@ -200,10 +197,7 @@ export default function App() {
     localStorage.getItem("dla-theme") === "light",
   );
   const [error, setError] = useState("");
-  const [result, setResult] = useState<Result | null>(null);
-  const [busy, setBusy] = useState(false);
   const [queryBusy, setQueryBusy] = useState(false);
-  const [search, setSearch] = useState("");
   const [location, setLocation] = useState("");
   const [sql, setSQL] = useState<string>(presets["Highest model risk"]);
   const [explored, setExplored] = useState<Result | null>(null);
@@ -237,39 +231,6 @@ export default function App() {
         .catch((e) => setError(e.message));
     }
   }, [catalog, refreshReviews]);
-  useEffect(() => {
-    if (!catalog || !["overview", "inventory", "orders"].includes(tab)) return;
-    let active = true;
-    setBusy(true);
-    setError("");
-    setResult(null);
-    const timer = setTimeout(() => {
-      const where = [
-        location
-          ? `${tab === "orders" ? "destination" : "location"}=${literal(location)}`
-          : "",
-        search ? `niin ILIKE ${literal(`%${search}%`)}` : "",
-      ].filter(Boolean);
-      const statement =
-        tab === "orders"
-          ? `SELECT order_id, niin, destination, quantity, expected_receipt_date, is_overdue FROM replenishment_orders WHERE is_open ${where.length ? "AND " + where.join(" AND ") : ""} ORDER BY is_overdue DESC, expected_receipt_date, order_id LIMIT 100`
-          : `SELECT niin, item_name, location, closing_stock, days_of_cover, shortage_probability_14d FROM latest_inventory ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY shortage_probability_14d DESC NULLS LAST, closing_stock, niin, location LIMIT ${tab === "overview" ? 12 : 100}`;
-      query(statement)
-        .then((r) => {
-          if (active) setResult(r);
-        })
-        .catch((e) => {
-          if (active) setError(e.message);
-        })
-        .finally(() => {
-          if (active) setBusy(false);
-        });
-    }, 180);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [tab, catalog, location, search]);
   function ask(question: string) {
     setAgentOpen(true);
     setPrompt(question);
@@ -512,87 +473,15 @@ export default function App() {
             </div>
           </>
         )}
-        {["overview", "inventory", "orders"].includes(tab) && (
-          <section className="panel inventory-panel">
-            <div className="panel-heading">
-              <div>
-                <h2>
-                  {tab === "orders"
-                    ? "Open order register"
-                    : tab === "overview"
-                      ? "Shortage risk watchlist"
-                      : "Item-location register"}
-                </h2>
-                <p>
-                  {tab === "orders"
-                    ? "Expected dates are simulated commitments, not delivery predictions."
-                    : "Higher probabilities first. Coverage is a trailing-demand ratio, not a stockout forecast."}
-                </p>
-              </div>
-              {tab === "overview" && (
-                <button
-                  className="text-button"
-                  onClick={() => setTab("inventory")}
-                >
-                  All positions <ArrowUpRight size={14} />
-                </button>
-              )}
-            </div>
-            <div className="filters">
-              <div className="search">
-                <PackageSearch size={16} />
-                <input
-                  aria-label="Filter NIIN"
-                  placeholder="Filter by NIIN…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <select
-                aria-label="Filter depot"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              >
-                <option value="">All depots</option>
-                {overview.depots.map((d) => (
-                  <option value={String(d.location)} key={String(d.location)}>
-                    {depot(d.location)}
-                  </option>
-                ))}
-              </select>
-              <span className="small muted">
-                {busy ? "Loading…" : `${result?.rows.length ?? 0} rows shown`}
-              </span>
-            </div>
-            {!catalog.row_counts.risk_scores && tab !== "orders" && (
-              <div className="note warning">
-                Model scores have not been loaded for this snapshot. Blank
-                probabilities mean risk has not been assessed.
-              </div>
-            )}
-            {busy ? (
-              <div className="empty">
-                <LoaderCircle className="spin" size={22} />
-              </div>
-            ) : (
-              result && <DataTable result={result} onRow={investigate} />
-            )}
-            <div className="panel-footer">
-              <span>Real catalog identities • synthetic operations</span>
-              <button
-                className="text-button"
-                onClick={() =>
-                  ask(
-                    tab === "orders"
-                      ? suggestionsForOrders
-                      : "Compare current shortage risk across depots and identify which item-location positions need review.",
-                  )
-                }
-              >
-                Investigate with assistant <Bot size={14} />
-              </button>
-            </div>
-          </section>
+        {(tab === "overview" || tab === "inventory" || tab === "orders") && (
+          <RegisterPanel
+            key={tab + location}
+            kind={tab}
+            catalog={catalog}
+            overview={overview}
+            initialDepot={location}
+            onRow={investigate}
+          />
         )}
         {tab === "explorer" && (
           <>
@@ -892,5 +781,3 @@ export default function App() {
     </div>
   );
 }
-const suggestionsForOrders =
-  "Which open orders are overdue, and which of those NIINs also have elevated model shortage risk at the destination?";

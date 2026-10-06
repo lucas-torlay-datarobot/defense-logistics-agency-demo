@@ -1316,3 +1316,31 @@ details[open] > summary::before {
     animation: none;
   }
 }
+
+.register-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+.register-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+.register-filters input,
+.register-filters select {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+.register-pagination {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.register-pagination span {
+  margin-right: auto;
+}

@@ -130,3 +130,27 @@ npm --prefix frontend_web run build
 ```
 
 Tests exercise source identity, join grain, missing-score behavior, query restrictions/time limits, authenticated API calls, session persistence, explicit memory, SQL repair and inspectable evidence. Cloud calls are mocked in unit tests. Run the example questions against your actual LLM and review SQL correctness before a live demonstration. An LLM explanation is an interpretation; the query rows and recorded source snapshot are the checkable evidence.
+
+### Browse inventory and order history
+
+Orders defaults to all orders, including received history and open supply due after
+the snapshot. Use Order status and Due status together to narrow the register.
+Receipt date bounds are inclusive and refer to expected receipt dates. Overdue
+means still open at the end of the snapshot day with an expected date on or before
+that day. Future due means still open with an expected date after the snapshot.
+
+Orders, Inventory, and the Shortage risk watchlist support literal, case-insensitive
+item-name/NIIN/NSN search, depot filters, risk ranges in percent, and ascending or
+descending sorting. Orders additionally supports order-ID search, quantity ranges,
+and expected receipt date ranges. Inventory and the watchlist support stock status
+and maximum days of cover. Risk ranges exclude rows without model scores.
+
+Results are filtered and sorted across the entire snapshot, then shown in pages of
+50 rows. Reset filters clears the current register. Changing tabs resets register
+controls; a depot selected from Depot watch remains the initial depot selection.
+Order item details are joined by NIIN; current stock and risk are joined by NIIN and
+destination. These describe the snapshot, not historical conditions when the order
+was placed. All operational records remain synthetic.
+
+These controls work with existing app snapshots. Pull the code, build the frontend,
+and restart the app; no data preparation or model training is required.
