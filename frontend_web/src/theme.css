@@ -1396,3 +1396,48 @@ details[open] > summary::before {
   color: var(--muted);
   margin-top: 12px;
 }
+
+.email-action {
+  margin: 12px 0;
+}
+.email-composer {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--raised);
+}
+.email-composer > label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  margin: 12px 0;
+}
+.email-composer input,
+.email-composer textarea {
+  width: 100%;
+  padding: 8px;
+}
+.email-order-choices {
+  max-height: 220px;
+  overflow: auto;
+  margin: 12px 0;
+}
+.email-order-choices label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.email-order-choices input {
+  width: auto;
+  flex-shrink: 0;
+}
+.email-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}

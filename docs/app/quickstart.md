@@ -158,3 +158,9 @@ and restart the app; no data preparation or model training is required.
 ## Add supply chain document guidance
 
 [Configure RAG retrieval](rag.md) for `DLA_Supply_Chain_Processes`. Deploy the existing vector database once, then run `scripts/configure_rag.py --deployment-id YOUR_VECTOR_DEPLOYMENT_ID` using the same `.venv-dla/bin/python -I` command. This reuses the chat LLM and adds cited document evidence to chat and saved reviews.
+
+## Draft an order follow-up
+
+Ask for orders, or ask “Draft a follow-up email to johndoe@xyz.com for these orders.” On an assistant result containing `order_id`, click **Draft follow-up email**. Select one to three orders, then **Prepare draft**. Review the recipient, subject and editable message. **Copy draft** copies the text; **Open email app** opens a `mailto:` draft in your configured device email handler. The application never sends email or executes a formal MILSTRIP transaction.
+
+The draft uses the selected evidence rows and labels the operations simulated. An address explicitly typed in the question is prefilled; otherwise the recipient is blank. There is no facility POC directory or invented contact mapping. The placeholder address is only an example. Email availability depends on your device having a configured email handler; copying the draft works independently where browser clipboard access is available. Draft edits live in the open chat component and are not persisted when it unmounts or the page reloads. **Save for review** remains the separate existing action for retaining the underlying assistant evidence.

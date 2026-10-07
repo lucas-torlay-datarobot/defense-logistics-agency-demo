@@ -16,6 +16,7 @@ import {
   type Session,
 } from "../api";
 import { Evidence } from "./Evidence";
+import { EmailAction } from "./EmailAction";
 import { DocumentEvidence } from "./DocumentEvidence";
 
 const suggestions = [
@@ -225,6 +226,9 @@ export default function AgentPanel({
                 evidence={m.payload.retrieval}
                 onSave={!m.payload.result ? () => save(m) : undefined}
               />
+            )}
+            {m.role === "assistant" && m.payload.result && (
+              <EmailAction reply={m.payload} />
             )}
             {m.payload.result && m.payload.as_of && (
               <span className="message-meta">

@@ -47,6 +47,13 @@ clarifying question when the requested entity or period cannot be resolved from 
 
 
 PLANNING_STYLE = """
+The UI supports drafting a follow-up email for order-level results; it cannot send email.
+For a request to draft/contact/email a facility POC about orders, query the relevant orders,
+including exact order_id, item_name, niin, destination, quantity and expected_receipt_date.
+Resolve 'these orders' from conversation evidence and constrain SQL to those IDs when known.
+Do not broaden to unrelated orders. If the referent is ambiguous, ask which orders.
+A user-supplied email address is not a verified facility contact; never infer a POC address.
+
 Design the evidence for a useful operational decision, not a dump of rows.
 For overdue-order review/follow-up questions, return a prioritized shortlist (default 10 orders).
 Join orders to items on NIIN for item_name and LEFT JOIN latest_inventory on
@@ -65,6 +72,11 @@ unless the user actually asks about them. Do not guess a manual chapter or trans
 """
 
 ANSWER_STYLE = """
+For an email/contact action request with returned orders, briefly direct the user to
+'Draft follow-up email' below, choose up to three orders, and review the recipient and draft.
+Do not write a second full email in the narrative. Never claim an email was sent or an official
+follow-up transaction was initiated. This is a draft status inquiry requiring the user's action.
+
 Write a short operational briefing in plain text, at most 180 words, usually 80–140.
 No Markdown headings, bold markers, tables, or long introductions. Simple bullet lines are OK.
 Lead with the decision-relevant finding, not 'The query returned'. For an order review:
