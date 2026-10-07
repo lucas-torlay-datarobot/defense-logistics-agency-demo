@@ -190,3 +190,20 @@ def test_operator_error_detail_redacts_secrets_and_stays_out_of_chat(monkeypatch
     assert "test-only-secret" not in error.value.diagnostic
     assert "private question" not in error.value.diagnostic
     assert "Missing required" not in str(error.value)
+
+
+def test_explicit_disable_makes_no_detector_requests(monkeypatch):
+    monkeypatch.setenv("DLA_PROMPT_GUARD_ENABLED", "false")
+    guard = DataRobotPromptGuard()
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Disabled guard must not score")
+
+    monkeypatch.setattr(guard, "score", forbidden)
+    assert guard.check("Show overdue orders") is None
+
+
+@pytest.mark.parametrize("flag", ["true", "", "typo"])
+def test_guard_remains_enabled_unless_explicitly_disabled(monkeypatch, flag):
+    monkeypatch.setenv("DLA_PROMPT_GUARD_ENABLED", flag)
+    assert DataRobotPromptGuard().enabled

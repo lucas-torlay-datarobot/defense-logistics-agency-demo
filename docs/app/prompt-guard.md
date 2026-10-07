@@ -37,3 +37,13 @@ References:
 
 - [DataRobot Moderations guardrails: model guards, prompt stage, block conditions, and prompt-injection example](https://docs.datarobot.com/en/docs/api/code-first-tools/moderations-library/moderations-guardrails.html)
 - [Configure native evaluation and moderation](https://docs.datarobot.com/latest/en/docs/agentic-ai/agentic-deploy/agentic-configure-evaluation-moderation.html)
+
+## Temporarily run without the detector
+
+Set `DLA_PROMPT_GUARD_ENABLED=false` in `.env` and restart the app. Or apply it only to one launch:
+
+```bash
+DLA_PROMPT_GUARD_ENABLED=false ./.venv-dla/bin/python -I scripts/run_app.py --host 0.0.0.0 --port 8080
+```
+
+Chat and saved preferences then skip detector requests, so its availability does not block them. SQL restrictions and the rest of the app remain unchanged. The check script reports disabled without calling DataRobot. Set the flag to `true` and restart to restore checking; the default is enabled. Only the explicit value `false` (case insensitive) disables it.

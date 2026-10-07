@@ -15,6 +15,10 @@ if __name__ == "__main__":
     load_dotenv(ROOT / ".env", override=False)
     logging.basicConfig(level=logging.WARNING)
     guard = DataRobotPromptGuard()
+    if not guard.enabled:
+        raise SystemExit(
+            "Prompt guard is disabled (DLA_PROMPT_GUARD_ENABLED=false). No detector requests made."
+        )
     print(f"Guard deployment: {guard.deployment_id}; block above {guard.threshold}")
     print(f"Input column: {guard.input_column}; attack class: {guard.attack_label}")
     try:

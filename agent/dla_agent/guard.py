@@ -33,6 +33,7 @@ class PromptBlocked(RuntimeError):
 
 class DataRobotPromptGuard:
     def __init__(self):
+        self.enabled = os.getenv("DLA_PROMPT_GUARD_ENABLED", "true").strip().lower() != "false"
         self.deployment_id = os.getenv("DLA_PROMPT_GUARD_DEPLOYMENT_ID") or DEFAULT_DEPLOYMENT
         self.endpoint = os.getenv("DATAROBOT_ENDPOINT", "").rstrip("/")
         self.token = os.getenv("DATAROBOT_API_TOKEN", "")
@@ -116,6 +117,9 @@ class DataRobotPromptGuard:
             raise error from None
 
     def check(self, text):
+        if not self.enabled:
+            logger.info("prompt_guard disabled by configuration; check skipped")
+            return None
         score = self.score(text)
         blocked = score > self.threshold
         logger.info(
