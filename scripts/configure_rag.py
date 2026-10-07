@@ -99,12 +99,21 @@ def main():
 
 
 if __name__ == "__main__":
+    from dla_agent.retrieval import RetrievalError
+
     try:
         main()
-    except Exception:
+    except RetrievalError as exc:
+        print(f"RAG retrieval check failed: {exc}", file=sys.stderr)
+        print(
+            "Your deployment ID is saved. Rerun this check after resolving the reported issue; no new deployment is needed.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
+    except Exception as exc:
         # SDK exceptions may contain headers or response bodies. Don't print them.
         print(
-            "RAG setup/check failed. Any returned deployment ID was saved in artifacts/rag/deployment.json. Check DataRobot Console for deployment status/access and retry with --deployment-id. Do not blindly create another deployment.",
+            f"RAG setup/check failed ({type(exc).__name__}). Any returned deployment ID was saved in artifacts/rag/deployment.json. Check DataRobot Console for deployment status/access and retry with --deployment-id. Do not blindly create another deployment.",
             file=sys.stderr,
         )
         raise SystemExit(1) from None

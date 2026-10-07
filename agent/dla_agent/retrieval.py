@@ -16,6 +16,10 @@ DEFAULT_DATABASE_ID = "6ac695306e7d24fb54aba935"
 DEFAULT_DATABASE_NAME = "DLA_Supply_Chain_Processes"
 
 
+class RetrievalError(RuntimeError):
+    """Safe application-authored diagnostic, without upstream bodies or secrets."""
+
+
 def documents_from_response(body):
     """Accept the direct and structured prediction shapes used by the VDB tool."""
     rows = body if isinstance(body, list) else body.get("data") if isinstance(body, dict) else None
@@ -55,7 +59,7 @@ def https_url(value):
         or parsed.query
         or parsed.fragment
     ):
-        raise RuntimeError("Retrieval requires a valid DataRobot HTTPS endpoint")
+        raise RetrievalError("Retrieval requires a valid DataRobot HTTPS endpoint")
     return value.rstrip("/")
 
 
@@ -83,14 +87,26 @@ class DataRobotRetriever:
 
     def retrieve(self, query):
         if not self.configured:
-            raise RuntimeError(
-                "Document retrieval needs DLA_RAG_DEPLOYMENT_ID. Deploy DLA_Supply_Chain_Processes and run scripts/configure_rag.py; the vector database ID is not a deployment ID."
+            missing = [
+                key
+                for key, value in {
+                    "DLA_RAG_DEPLOYMENT_ID": self.deployment_id,
+                    "DATAROBOT_ENDPOINT": self.endpoint,
+                    "DATAROBOT_API_TOKEN": self.token,
+                }.items()
+                if not value
+            ]
+            raise RetrievalError(
+                "Missing retrieval configuration: "
+                + ", ".join(missing)
+                + ". Set these in the server environment or .env."
             )
         if not isinstance(query, str) or not query.strip() or len(query) > 2000:
-            raise RuntimeError("Document search requires a question of 1–2,000 characters")
+            raise RetrievalError("Document search requires a question of 1–2,000 characters")
         if not re.fullmatch(r"[0-9a-fA-F]{24}", self.deployment_id):
-            raise RuntimeError("DLA_RAG_DEPLOYMENT_ID must be a DataRobot deployment ID")
+            raise RetrievalError("DLA_RAG_DEPLOYMENT_ID must be a DataRobot deployment ID")
         endpoint = https_url(self.endpoint)
+        stage = "deployment metadata lookup"
         try:
             with httpx.Client(
                 timeout=httpx.Timeout(60, connect=10), follow_redirects=False
@@ -104,7 +120,8 @@ class DataRobotRetriever:
                 if model.get("targetType") != "VectorDatabase" and not capabilities.get(
                     "supportsVectorDatabaseQuerying"
                 ):
-                    raise RuntimeError("Configured retrieval deployment is not a vector database")
+                    raise RetrievalError("Configured retrieval deployment is not a vector database")
+                stage = "prediction endpoint resolution"
                 environment = dep.get("predictionEnvironment") or {}
                 server = dep.get("defaultPredictionServer") or {}
                 if environment.get("platform") == "datarobotServerless":
@@ -113,6 +130,7 @@ class DataRobotRetriever:
                     base = https_url(server.get("url", "")) + "/predApi/v1.0"
                     if server.get("datarobot-key"):
                         headers["datarobot-key"] = server["datarobot-key"]
+                stage = "vector search request"
                 body = self._json(
                     client,
                     "POST",
@@ -126,14 +144,19 @@ class DataRobotRetriever:
                         }
                     ],
                 )
+                stage = "vector search response parsing"
                 raw = documents_from_response(body)
         except httpx.TimeoutException:
-            raise RuntimeError(
-                "Document retrieval timed out. Retry after checking the vector deployment's service health."
+            raise RetrievalError(
+                f"Retrieval timed out during {stage}. Check deployment service health and retry."
             ) from None
-        except (httpx.HTTPError, ValueError, KeyError, TypeError):
-            raise RuntimeError(
-                "Document retrieval returned an unsupported response or could not connect. Check the vector deployment and server credentials."
+        except httpx.HTTPError as exc:
+            raise RetrievalError(
+                f"Retrieval connection failed during {stage} ({type(exc).__name__}). Check network access and the DataRobot endpoint."
+            ) from None
+        except (ValueError, KeyError, TypeError, AttributeError):
+            raise RetrievalError(
+                f"Retrieval failed during {stage}: unsupported response format. Check the vector deployment prediction API schema."
             ) from None
         documents, seen, budget = [], set(), 16000
         for doc in raw:
@@ -186,12 +209,12 @@ class DataRobotRetriever:
         # Bound the wire response as well as the context sent to the LLM.
         with client.stream(method, url, **kwargs) as response:
             if response.status_code != 200:
-                raise RuntimeError(
-                    f"DataRobot retrieval request failed (HTTP {response.status_code}). Check deployment access and service health."
+                raise RetrievalError(
+                    f"DataRobot retrieval {'deployment lookup' if method == 'GET' else 'vector search'} failed (HTTP {response.status_code}). Check deployment access and service health."
                 )
             content = bytearray()
             for block in response.iter_bytes():
                 content.extend(block)
                 if len(content) > 1_000_000:
-                    raise RuntimeError("Document retrieval response exceeded the size limit")
+                    raise RetrievalError("Document retrieval response exceeded the size limit")
             return json.loads(content)

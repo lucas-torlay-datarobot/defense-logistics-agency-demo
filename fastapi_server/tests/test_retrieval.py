@@ -294,3 +294,35 @@ def test_setup_reuses_saved_deployment_preserves_secrets_and_blocks_repeat_creat
     with pytest.raises(SystemExit) as error:
         module.main()
     assert error.value.code == 2
+
+
+def test_missing_configuration_names_only_missing_settings(monkeypatch):
+    from dla_agent.retrieval import RetrievalError
+
+    monkeypatch.setenv("DLA_RAG_DEPLOYMENT_ID", DEPLOYMENT)
+    monkeypatch.setenv("DATAROBOT_ENDPOINT", "https://tenant.example/api/v2")
+    monkeypatch.delenv("DATAROBOT_API_TOKEN", raising=False)
+    with pytest.raises(RetrievalError) as error:
+        DataRobotRetriever().retrieve("test")
+    assert "DATAROBOT_API_TOKEN" in str(error.value)
+    assert "DLA_RAG_DEPLOYMENT_ID" not in str(error.value)
+
+
+def test_prediction_error_identifies_failed_stage(configured, monkeypatch):
+    from dla_agent.retrieval import RetrievalError
+
+    def handler(request):
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={
+                    "model": {"targetType": "VectorDatabase"},
+                    "predictionEnvironment": {"platform": "datarobotServerless"},
+                },
+            )
+        return httpx.Response(422, text="upstream server-secret")
+
+    transport(monkeypatch, handler)
+    with pytest.raises(RetrievalError, match="vector search failed.*HTTP 422") as error:
+        configured.retrieve("test")
+    assert "server-secret" not in str(error.value)
