@@ -14,6 +14,11 @@ from fastapi.testclient import TestClient
 AUTH = {"X-DLA-Profile": "12345678-1234-4234-8234-123456789abc"}
 
 
+class AllowGuard:
+    def check(self, text):
+        return 0.01
+
+
 class Unconfigured:
     configured = False
 
@@ -135,7 +140,7 @@ def test_persistent_conversation_memory_and_review(prepared):
             "The evidence lists the two NIINs.",
         ]
     )
-    agent = Agent(QueryService(output / "snapshot.duckdb"), memory, llm)
+    agent = Agent(QueryService(output / "snapshot.duckdb"), memory, llm, guard=AllowGuard())
     first = agent.ask(session, "How many items do we have?")
     second = agent.ask(session, "Show me their NIINs")
     assert first["result"]["rows"] == [{"items": 2}]
@@ -176,7 +181,7 @@ def test_agent_repairs_once_and_clarifies(prepared):
             ),
         ]
     )
-    reply = Agent(QueryService(output / "snapshot.duckdb"), memory, llm).ask(
+    reply = Agent(QueryService(output / "snapshot.duckdb"), memory, llm, guard=AllowGuard()).ask(
         session, "What about there?"
     )
     assert reply["status"] == "clarification" and "result" not in reply
@@ -185,7 +190,7 @@ def test_agent_repairs_once_and_clarifies(prepared):
 
 def test_no_login_dashboard_and_unconfigured_llm(prepared):
     _, output = prepared
-    client = TestClient(create_app(output, llm=Unconfigured()))
+    client = TestClient(create_app(output, llm=Unconfigured(), guard=AllowGuard()))
     assert client.get("/api/v1/health").status_code == 200
     assert client.get("/api/v1/catalog").status_code == 200
     assert client.post("/api/v1/query", json={"sql": "SELECT * FROM items"}).status_code == 200
@@ -299,7 +304,7 @@ def test_external_access_disabled_at_engine_level(prepared):
 def test_profile_scope_is_independent_of_platform_authorization(prepared, monkeypatch):
     _, output = prepared
     monkeypatch.setenv("DLA_APP_ACCESS_TOKEN", "old-unused-token")
-    client = TestClient(create_app(output, llm=Unconfigured()))
+    client = TestClient(create_app(output, llm=Unconfigured(), guard=AllowGuard()))
     forwarded = {**AUTH, "Authorization": "Bearer platform-session-credential"}
     assert client.get("/api/v1/catalog").status_code == 200
     assert client.post("/api/v1/sessions", headers=forwarded, json={}).status_code == 200
@@ -321,7 +326,7 @@ def test_browser_profiles_isolate_history_preferences_and_reviews(prepared):
             "There are 2 simulated items.",
         ]
     )
-    client = TestClient(create_app(output, llm=llm))
+    client = TestClient(create_app(output, llm=llm, guard=AllowGuard()))
     session = client.post("/api/v1/sessions", headers=AUTH, json={}).json()["id"]
     reply = client.post(
         f"/api/v1/sessions/{session}/messages", headers=AUTH, json={"message": "Count items"}
@@ -350,7 +355,7 @@ def test_browser_profiles_isolate_history_preferences_and_reviews(prepared):
     )
     client.delete(f"/api/v1/sessions/{session}", headers=other)
     client.patch(f"/api/v1/reviews/{reviews[0]['id']}", headers=other, json={"status": "dismissed"})
-    restored = TestClient(create_app(output, llm=Unconfigured()))
+    restored = TestClient(create_app(output, llm=Unconfigured(), guard=AllowGuard()))
     assert len(restored.get(f"/api/v1/sessions/{session}", headers=AUTH).json()) == 2
     assert restored.get("/api/v1/memories", headers=AUTH).json()[0]["text"] == "Focus on Depot B"
     assert restored.get("/api/v1/reviews", headers=AUTH).json()[0]["status"] == "pending"

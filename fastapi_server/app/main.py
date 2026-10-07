@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 from typing import Literal
 
+from dla_agent.guard import DataRobotPromptGuard, GuardUnavailable, PromptBlocked
 from dla_agent.memory import Memory
 from dla_agent.query import QueryService
 from dla_agent.retrieval import DataRobotRetriever
@@ -39,7 +40,7 @@ class ReviewStatus(BaseModel):
     status: Literal["pending", "reviewed", "dismissed"]
 
 
-def create_app(data_dir=None, llm=None, retriever=None):
+def create_app(data_dir=None, llm=None, retriever=None, guard=None):
     directory = Path(data_dir or os.getenv("DLA_APP_DATA_DIR") or ROOT / "artifacts/app")
     if not (directory / "snapshot.duckdb").is_file():
         raise RuntimeError(
@@ -49,6 +50,7 @@ def create_app(data_dir=None, llm=None, retriever=None):
     llm = llm or DataRobotLLM()
     retriever = retriever or DataRobotRetriever()
     agent_lock = threading.Lock()
+    guard = guard or DataRobotPromptGuard()
 
     def profile_memory(x_dla_profile: str = Header(default="", alias="X-DLA-Profile")):
         # Browser-created demo scope, NOT authenticated identity or access control.
@@ -142,10 +144,15 @@ def create_app(data_dir=None, llm=None, retriever=None):
 
     @app.post("/api/v1/sessions/{session_id}/messages")
     def ask(session_id: str, request: Text, memory: Memory = Depends(profile_memory)):
-        agent = Agent(query, memory, llm, retriever)
+        agent = Agent(query, memory, llm, retriever, guard)
         agent.lock = agent_lock
         try:
-            return agent.ask(session_id, request.message.strip())
+            reply = agent.ask(session_id, request.message.strip())
+            if reply.get("status") == "blocked":
+                raise HTTPException(422, reply["message"])
+            if reply.get("status") == "unavailable" and "id" not in reply:
+                raise HTTPException(503, reply["message"])
+            return reply
         except KeyError as exc:
             raise HTTPException(404, "Conversation not found") from exc
         except RuntimeError as exc:
@@ -160,7 +167,12 @@ def create_app(data_dir=None, llm=None, retriever=None):
         if not request.text.strip():
             raise HTTPException(400, "Preference cannot be blank")
         try:
+            guard.check(request.text)
             return memory.remember(request.text)
+        except PromptBlocked as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except GuardUnavailable as exc:
+            raise HTTPException(503, str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 

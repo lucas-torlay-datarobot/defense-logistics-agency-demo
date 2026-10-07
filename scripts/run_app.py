@@ -2,6 +2,7 @@
 """Serve the built React app and API from one Codespace port."""
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -24,4 +25,8 @@ if __name__ == "__main__":
     import uvicorn
     from app.main import create_app
 
+    guard_logger = logging.getLogger("dla_agent.guard")
+    guard_logger.setLevel(logging.INFO)
+    guard_logger.addHandler(logging.StreamHandler())
+    guard_logger.propagate = False
     uvicorn.run(create_app(), host=args.host, port=args.port, access_log=False)

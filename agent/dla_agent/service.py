@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from .guard import DataRobotPromptGuard, GuardUnavailable, PromptBlocked
 from .retrieval import DataRobotRetriever
 
 POLICY = """You are DLA Logistics Intelligence, assisting a synthetic demonstration.
@@ -173,9 +174,10 @@ def parse_plan(text):
 
 
 class Agent:
-    def __init__(self, query, memory, llm, retriever=None):
+    def __init__(self, query, memory, llm, retriever=None, guard=None):
         self.query, self.memory, self.llm = query, memory, llm
         self.retriever = retriever or DataRobotRetriever()
+        self.guard = guard or DataRobotPromptGuard()
         self.lock = threading.Lock()
 
     def ask(self, session_id, question):
@@ -189,6 +191,17 @@ class Agent:
 
     def _ask(self, session_id, question):
         history = self.memory.messages(session_id)[-10:]
+        try:
+            self.guard.check(question)
+            # Existing saved preferences also enter the planner context.
+            for preference in self.memory.memories():
+                self.guard.check(preference["text"])
+        except (PromptBlocked, GuardUnavailable) as exc:
+            # Rejected inputs never enter conversation history or future context.
+            return {
+                "status": "blocked" if isinstance(exc, PromptBlocked) else "unavailable",
+                "message": str(exc),
+            }
         meta = self.query.metadata()
         context = {
             "snapshot": meta,
