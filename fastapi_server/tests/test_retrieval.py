@@ -326,3 +326,74 @@ def test_prediction_error_identifies_failed_stage(configured, monkeypatch):
     with pytest.raises(RetrievalError, match="vector search failed.*HTTP 422") as error:
         configured.retrieve("test")
     assert "server-secret" not in str(error.value)
+
+
+def test_long_answer_rewritten_once_without_requery(prepared):
+    llm = FakeLLM(
+        [
+            json.dumps(
+                {
+                    "status": "retrieve",
+                    "message": "Find guidance",
+                    "retrieval_query": "outstanding requisition status follow-up",
+                }
+            ),
+            "Word " * 220 + "[D1]",
+            "Check order status [D1].",
+        ]
+    )
+    retrieval = RetrievalFixture()
+    client, session = chat_client(prepared, llm, retrieval)
+    reply = ask(client, session)
+    assert reply["message"] == "Check order status [D1]."
+    assert len(llm.calls) == 3
+    assert len(retrieval.queries) == 1
+
+
+def test_irrelevant_passages_allow_plain_abstention_without_forced_citations(prepared):
+    from dla_agent.service import NO_PROCEDURE
+
+    llm = FakeLLM(
+        [
+            json.dumps(
+                {
+                    "status": "retrieve",
+                    "message": "Find guidance",
+                    "retrieval_query": "overdue delivery",
+                }
+            ),
+            NO_PROCEDURE,
+        ]
+    )
+    client, session = chat_client(prepared, llm, RetrievalFixture())
+    reply = ask(client, session)
+    assert reply["message"] == NO_PROCEDURE
+    assert len(llm.calls) == 2
+    assert len(reply["retrieval"]["documents"]) == 1
+
+
+def test_order_shortlist_preserves_population_and_grain(prepared):
+    from dla_agent.query import QueryService
+
+    _, output = prepared
+    query = QueryService(output / "snapshot.duckdb")
+    sql = """
+        SELECT o.order_id, c.item_name, o.niin, o.destination, o.quantity,
+               o.expected_receipt_date,
+               DATE_DIFF('day', o.expected_receipt_date, DATE '2025-03-31') AS days_overdue,
+               i.closing_stock, i.shortage_probability_14d,
+               COUNT(*) OVER () AS total_matching_orders
+        FROM replenishment_orders o
+        LEFT JOIN items c ON o.niin=c.niin
+        LEFT JOIN latest_inventory i ON o.niin=i.niin AND o.destination=i.location
+        WHERE o.is_open
+        ORDER BY i.shortage_probability_14d DESC NULLS LAST, o.expected_receipt_date ASC, o.order_id
+        LIMIT 1
+    """
+    rows = query.execute(sql)["rows"]
+    count = query.execute("SELECT count(*) AS n FROM replenishment_orders WHERE is_open")["rows"][
+        0
+    ]["n"]
+    assert rows and count > 1
+    assert rows[0]["total_matching_orders"] == count
+    assert rows[0]["item_name"] == "FIXTURE ITEM"

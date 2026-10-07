@@ -46,6 +46,63 @@ clarifying question when the requested entity or period cannot be resolved from 
 """
 
 
+PLANNING_STYLE = """
+Design the evidence for a useful operational decision, not a dump of rows.
+For overdue-order review/follow-up questions, return a prioritized shortlist (default 10 orders).
+Join orders to items on NIIN for item_name and LEFT JOIN latest_inventory on
+orders.niin=inventory.niin AND orders.destination=inventory.location. Keep one row per order.
+Include order_id, item_name, niin, destination, quantity, expected_receipt_date, days overdue
+(using DATE_DIFF and the supplied snapshot date), closing_stock and shortage_probability_14d.
+Rank by shortage_probability_14d DESC NULLS LAST, then expected_receipt_date ASC, then order_id.
+This is a review ordering, not a model of order criticality or an approval to expedite.
+Include COUNT(*) OVER () AS total_matching_orders before LIMIT, so the narrative can distinguish
+all matching orders from the displayed shortlist. Do not sum quantities across different NIINs.
+For general questions, choose the relevant fields and grain instead of forcing this order layout.
+Make retrieval_query a focused process question, not the entire analytical user request.
+For overdue-order follow-up search for outstanding requisition status inquiry, overdue delivery,
+and follow-up procedures. Avoid expanding into cancellation, excess stock, or billing disputes
+unless the user actually asks about them. Do not guess a manual chapter or transaction code.
+"""
+
+ANSWER_STYLE = """
+Write a short operational briefing in plain text, at most 180 words, usually 80–140.
+No Markdown headings, bold markers, tables, or long introductions. Simple bullet lines are OK.
+Lead with the decision-relevant finding, not 'The query returned'. For an order review:
+- One sentence stating the total matching orders if provided, snapshot date, and simulated context.
+- Up to three named items/orders to review first, with depot, days overdue and available 14-day
+  shortage probability. Use order IDs to distinguish repeated items. State the ranking basis briefly.
+- One or two directly supported follow-up steps with [D#] citations. Connect them to the finding.
+Use Depot A/B/C in prose, not SYNTHETIC_DEPOT_A/B/C. Keep exact identifiers in the evidence table.
+Do not repeat all the rows, date ranges, SQL predicates, null checks or metadata already shown below.
+Say 'Top 10 shown' or another actual scope once if needed, not a paragraph about truncation.
+Describe NULL receipt dates as 'no receipt recorded'; avoid a second paragraph explaining that phrase.
+Reference guidance must directly address this situation. OMIT unrelated retrieved passages, even
+if they are true: excess-stock cancellation and no-record cancellation are not overdue follow-up steps.
+Do not turn a receipt-acknowledgment rule into an overdue-order procedure.
+If the retrieved passages do not support a useful answer to the requested guidance, write exactly:
+'The retrieved documents do not establish the requested procedure.'
+Then, if useful, give ONE plainly labeled analyst suggestion supported by the operational facts
+(e.g. review receipt/status records for the highest-risk item-location). Never invent a prescribed
+form, deadline, transaction code or manual chapter. Do not cite irrelevant passages to fill space.
+No closing 'Would you like me to search?' question: the user already requested an investigation.
+Only ask a question when a missing user decision actually prevents answering.
+For non-order questions, adapt this compact finding/evidence/next-step style to the question.
+"""
+
+NO_PROCEDURE = "The retrieved documents do not establish the requested procedure."
+
+
+def validate_brief(answer, documents):
+    """Enforce length and citation references; this is not semantic fact checking."""
+    if len(answer.split()) > 180:
+        raise ValueError("Answer exceeds 180 words")
+    cited = set(re.findall(r"\[(D[0-9]+)\]", answer))
+    allowed = {d["id"] for d in documents}
+    if cited - allowed or (documents and not cited and NO_PROCEDURE not in answer):
+        raise ValueError("Citations must reference retrieved evidence, or explicitly abstain")
+    return answer
+
+
 class Plan(BaseModel):
     model_config = ConfigDict(extra="forbid")
     status: Literal["query", "retrieve", "hybrid", "clarification", "unavailable"]
@@ -151,6 +208,7 @@ class Agent:
             {
                 "role": "system",
                 "content": POLICY
+                + PLANNING_STYLE
                 + "\nReturn ONLY JSON with keys status (query/retrieve/hybrid/clarification/unavailable), message (short intent or question), sql (one DuckDB SELECT/CTE or null), retrieval_query (standalone document search or null). Resolve follow-up references from the conversation. query needs SQL, retrieve needs retrieval_query, hybrid needs both. Documents describe logistics processes, not live inventory. Use retrieval for procedural guidance even if currently unconfigured, so the user gets a setup message. Select explicit columns, limit detail rows to 50. Use aggregations to answer population questions. Do not use current_date or external functions. Do not claim results before running a query.",
             },
             {"role": "user", "content": json.dumps(context, default=str)},
@@ -210,38 +268,46 @@ class Agent:
             if result is not None or documents:
                 payload.update(status="answer", message="Evidence is available below.")
                 try:
-                    answer = self.llm.complete(
-                        [
-                            {
-                                "role": "system",
-                                "content": POLICY
-                                + "\nAnswer concisely from the supplied evidence only. "
-                                "Label operational results simulated; documents are reference guidance. Cite EVERY document-based claim using [D1] etc. "
-                                "Never invent citations, dates, page numbers, numbers or causation. If document search failed or is empty, "
-                                "explicitly say guidance could not be established. Describe only visible rows if truncated or limited. "
-                                "The SQL table and document excerpts will be displayed separately. Do not write HTML.",
-                            },
-                            {
-                                "role": "user",
-                                "content": json.dumps(
-                                    {
-                                        "question": question,
-                                        "as_of": meta["as_of"],
-                                        "result": result,
-                                        "retrieval": retrieval,
-                                    },
-                                    default=str,
-                                ),
-                            },
-                        ]
-                    )
-                    answer = answer[:8000]
-                    # Referential check only; semantic faithfulness still needs evaluation.
-                    cited = set(re.findall(r"\[(D[0-9]+)\]", answer))
-                    allowed = {d["id"] for d in documents}
-                    if cited - allowed or (documents and not cited):
-                        raise RuntimeError("Unverifiable citation IDs")
-                    payload["message"] = answer[:8000]
+                    synthesis = [
+                        {
+                            "role": "system",
+                            "content": POLICY
+                            + ANSWER_STYLE
+                            + "\nAnswer concisely from the supplied evidence only. "
+                            "Label operational results simulated; documents are reference guidance. Cite EVERY document-based claim using [D1] etc. "
+                            "Never invent citations, dates, page numbers, numbers or causation. If document search failed or is empty, "
+                            "explicitly say guidance could not be established. Describe only visible rows if truncated or limited. "
+                            "The SQL table and document excerpts will be displayed separately. Do not write HTML.",
+                        },
+                        {
+                            "role": "user",
+                            "content": json.dumps(
+                                {
+                                    "question": question,
+                                    "as_of": meta["as_of"],
+                                    "result": result,
+                                    "retrieval": retrieval,
+                                },
+                                default=str,
+                            ),
+                        },
+                    ]
+                    answer = self.llm.complete(synthesis)
+                    try:
+                        payload["message"] = validate_brief(answer, documents)
+                    except ValueError:
+                        # One bounded rewrite, with the same evidence; no extra tools or invented sources.
+                        answer = self.llm.complete(
+                            synthesis
+                            + [
+                                {"role": "assistant", "content": answer[:24000]},
+                                {
+                                    "role": "user",
+                                    "content": "Rewrite once: at most 180 words. Prioritize useful findings and directly relevant guidance. Use only supplied citation IDs. If passages are irrelevant, use the exact abstention sentence. Keep evidence and uncertainty intact.",
+                                },
+                            ]
+                        )
+                        payload["message"] = validate_brief(answer, documents)
                 except Exception:
                     payload["message"] = (
                         "Narrative unavailable or citations could not be verified. Inspect the completed evidence below."
