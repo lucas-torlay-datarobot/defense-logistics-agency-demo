@@ -8,12 +8,32 @@ export type Result = {
   row_limit: number;
   is_synthetic: boolean;
 };
+export type Retrieval = {
+  name: string;
+  vector_database_id: string;
+  deployment_id: string;
+  configured: boolean;
+  top_k: number;
+  status?: string;
+  query?: string;
+  retrieved_at?: string;
+  model_id?: string;
+  error?: string;
+  documents?: {
+    id: string;
+    source: string;
+    text: string;
+    metadata: Record<string, string>;
+    truncated: boolean;
+  }[];
+};
 export type Reply = {
   id?: number;
   status?: string;
   message: string;
   question?: string;
   result?: Result;
+  retrieval?: Retrieval;
   as_of?: string;
   snapshot_id?: string;
 };
@@ -35,6 +55,7 @@ export type Catalog = {
   is_synthetic: boolean;
   simulation_id: string;
   llm_configured: boolean;
+  retrieval?: Retrieval;
   limitations: string[];
   row_counts: Record<string, number>;
   tables: Record<

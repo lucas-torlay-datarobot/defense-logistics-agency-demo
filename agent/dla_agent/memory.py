@@ -109,8 +109,11 @@ class Memory:
         match = next(
             (m for m in messages if m["id"] == message_id and m["role"] == "assistant"), None
         )
-        if not match or not match["payload"].get("result"):
-            raise ValueError("Only a completed query result can be saved for review")
+        if not match or not (
+            match["payload"].get("result")
+            or (match["payload"].get("retrieval") or {}).get("documents")
+        ):
+            raise ValueError("Only completed query or document evidence can be saved for review")
         record = {
             "id": str(uuid.uuid4()),
             "session_id": session_id,

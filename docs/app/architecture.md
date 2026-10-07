@@ -5,10 +5,10 @@ The VA pattern is preserved: shared domain data services power both structured U
 ## Request path
 
 1. The authenticated API loads the current snapshot schema, source IDs, the last 10 conversation messages (up to 8 evidence rows per message), and explicitly saved preferences.
-2. The DataRobot chat deployment returns a structured plan: query, clarification, or unavailable. It can propose new SQL, rather than selecting only hard-coded question intents.
+2. The DataRobot chat deployment returns a structured plan: query, document retrieval, both, clarification, or unavailable. It can propose new SQL, rather than selecting only hard-coded question intents.
 3. A SQL AST check permits a single SELECT/non-recursive CTE over five curated tables and a conservative scalar/aggregate function allowlist. SQL is never passed to a shell. One repair attempt is permitted for invalid SQL or schema references.
 4. DuckDB opens the snapshot read-only, with external access and extension loading disabled, locked configuration, one thread, 512 MB memory, no spill space, and a 12-second interrupt timer. Queries are serialized. Returned data is capped at 200 rows/100 KB, 60 uniquely named columns, and 2,000 characters per text cell. Large/full scans may still be necessary for an aggregate.
-5. The LLM summarizes the bounded query result. The API returns its SQL, actual rows, source table names, source dataset/version IDs, snapshot ID, scenario date and synthetic marker. Narrative failures preserve completed evidence.
+5. For document questions, a bounded retrieval tool searches the configured deployed vector database. The LLM summarizes the bounded SQL and/or document evidence. The API returns its SQL, actual rows, source table names, source dataset/version IDs, snapshot ID, scenario date and synthetic marker. Narrative failures preserve completed evidence.
 6. SQLite stores the user turn and assistant response. Explicit preferences persist across conversations. Review items preserve the evidence snapshot and are idempotent by assistant message ID.
 
 The query restrictions reduce access/resource risks; they do not establish that an LLM's SQL or explanation is semantically correct. In particular, fan-out, date boundaries, and unit aggregation still require evaluation. The prompt documents grain and allowed joins, historical receipt visibility, scenario dates, probability semantics, absent domains, and the difference between simulated operations and catalog identities. Tables are trusted prepared files, never uploaded arbitrary DuckDB databases.
@@ -36,3 +36,7 @@ The app is single-user. All users of the shared app access token share the same 
 Before shared hosting, add trusted per-user identity and authorization to every data, conversation, memory and review access; migrate memory to a durable service with those scopes; package the snapshot refresh job; and choose a hosted application environment. Do not expose a shared token as a substitute for multi-user access control. The current API requires a secret even for localhost development and the run script defaults to localhost.
 
 References: [DataRobot LLM provider configuration](https://docs.datarobot.com/en/docs/agentic-ai/agentic-develop/agentic-llm-providers.html), [DuckDB security](https://duckdb.org/docs/current/operations_manual/securing_duckdb/overview), and [VA app attribution](../../THIRD_PARTY_NOTICES.md).
+
+## Reference document retrieval
+
+See [RAG setup and evaluation](rag.md) for the deployment contract, citation behavior, versioning, limits, and current DataRobot architecture references. Retrieval is an additional read-only tool; the dashboard and operational snapshot stay independent. Reference passages are saved alongside SQL evidence and shown in the chat and review queue. No resources are provisioned during a chat turn.

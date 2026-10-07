@@ -16,11 +16,13 @@ import {
   type Session,
 } from "../api";
 import { Evidence } from "./Evidence";
+import { DocumentEvidence } from "./DocumentEvidence";
 
 const suggestions = [
   "Which items have the highest 14-day shortage probability?",
   "Which open replenishment orders are overdue?",
-  "Compare shortage frequency across depots in the last 28 days.",
+  "What guidance do the documents give for overdue replenishment?",
+  "Show overdue orders and retrieve guidance for following up on them.",
 ];
 export default function AgentPanel({
   catalog,
@@ -182,7 +184,8 @@ export default function AgentPanel({
             </h2>
             <p>
               Explore inventory, incoming supply, and shortage risk in plain
-              language. Follow-up questions keep the conversation in context.
+              language, and consult supply chain reference documents. Follow-up
+              questions keep the conversation in context.
             </p>
             {suggestions.map((s) => (
               <button
@@ -217,7 +220,13 @@ export default function AgentPanel({
                 onSave={() => save(m)}
               />
             )}{" "}
-            {m.payload.as_of && (
+            {m.payload.retrieval && (
+              <DocumentEvidence
+                evidence={m.payload.retrieval}
+                onSave={!m.payload.result ? () => save(m) : undefined}
+              />
+            )}
+            {m.payload.result && m.payload.as_of && (
               <span className="message-meta">
                 Snapshot {m.payload.as_of} ·{" "}
                 {m.payload.snapshot_id?.slice(0, 8)} · synthetic
@@ -240,6 +249,12 @@ export default function AgentPanel({
             SQL explorer are available now.
           </div>
         )}
+        {catalog.retrieval && !catalog.retrieval.configured && (
+          <div className="note">
+            Document search is awaiting a vector database deployment.
+            Operational questions are available.
+          </div>
+        )}
         {error && (
           <p role="alert" className="error">
             {error}
@@ -249,7 +264,7 @@ export default function AgentPanel({
           <textarea
             ref={composer}
             aria-label="Ask DLA assistant"
-            placeholder="Ask about stock, orders, or risk…"
+            placeholder="Ask about stock, orders, risk, or guidance…"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {

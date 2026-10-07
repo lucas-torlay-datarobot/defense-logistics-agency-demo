@@ -34,6 +34,7 @@ import {
 import AgentPanel from "./components/AgentPanel";
 import RegisterPanel from "./components/RegisterPanel";
 import { Evidence } from "./components/Evidence";
+import { DocumentEvidence } from "./components/DocumentEvidence";
 
 type Tab =
   "overview" | "inventory" | "orders" | "explorer" | "reviews" | "memory";
@@ -614,6 +615,9 @@ export default function App() {
                 </div>
                 <p className="review-answer">{r.evidence.message}</p>
                 {r.evidence.result && <Evidence result={r.evidence.result} />}
+                {r.evidence.retrieval && (
+                  <DocumentEvidence evidence={r.evidence.retrieval} />
+                )}
               </article>
             ))}
           </section>

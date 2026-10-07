@@ -37,7 +37,7 @@ class ReviewStatus(BaseModel):
     status: Literal["pending", "reviewed", "dismissed"]
 
 
-def create_app(data_dir=None, token=None, llm=None):
+def create_app(data_dir=None, token=None, llm=None, retriever=None):
     directory = Path(data_dir or os.getenv("DLA_APP_DATA_DIR") or ROOT / "artifacts/app")
     token = token or os.getenv("DLA_APP_ACCESS_TOKEN")
     if not token or len(token) < 24:
@@ -51,7 +51,7 @@ def create_app(data_dir=None, token=None, llm=None):
         Memory(directory / "memory.sqlite3"),
     )
     llm = llm or DataRobotLLM()
-    agent = Agent(query, memory, llm)
+    agent = Agent(query, memory, llm, retriever)
 
     def authorize(x_dla_app_token: str = Header(default="", alias="X-DLA-App-Token")):
         # Authorization belongs to the hosting platform, which may inspect or replace it
@@ -84,6 +84,7 @@ def create_app(data_dir=None, token=None, llm=None):
         return {
             **query.metadata(),
             "llm_configured": llm.configured,
+            "retrieval": agent.retriever.info(),
             "memory_scope": "single-user demo workspace",
         }
 

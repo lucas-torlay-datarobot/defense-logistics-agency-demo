@@ -1344,3 +1344,55 @@ details[open] > summary::before {
 .register-pagination span {
   margin-right: auto;
 }
+
+.document-evidence {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+  overflow-wrap: anywhere;
+}
+.document-evidence .evidence-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.document-passage {
+  margin-top: 9px;
+  font-size: 12px;
+}
+.document-passage summary,
+.document-provenance summary {
+  cursor: pointer;
+  line-height: 1.5;
+}
+.document-passage blockquote {
+  white-space: pre-wrap;
+  margin: 10px 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+  line-height: 1.6;
+}
+.document-passage dl {
+  margin: 8px 0;
+  color: var(--muted);
+}
+.document-passage dl div {
+  display: flex;
+  gap: 8px;
+}
+.document-passage dt {
+  font-weight: 600;
+}
+.document-passage dd {
+  margin: 0;
+}
+.document-provenance {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 12px;
+}

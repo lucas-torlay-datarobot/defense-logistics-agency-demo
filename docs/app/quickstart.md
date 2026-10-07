@@ -154,3 +154,7 @@ was placed. All operational records remain synthetic.
 
 These controls work with existing app snapshots. Pull the code, build the frontend,
 and restart the app; no data preparation or model training is required.
+
+## Add supply chain document guidance
+
+[Configure RAG retrieval](rag.md) for `DLA_Supply_Chain_Processes`. Deploy the existing vector database once, then run `scripts/configure_rag.py --deployment-id YOUR_VECTOR_DEPLOYMENT_ID` using the same `.venv-dla/bin/python -I` command. This reuses the chat LLM and adds cited document evidence to chat and saved reviews.
