@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import {
   api,
+  profileId,
   type Catalog,
   type Message,
   type Reply,
@@ -40,7 +41,7 @@ export default function AgentPanel({
 }) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [session, setSession] = useState(
-    sessionStorage.getItem("dla-session") || "",
+    sessionStorage.getItem(`dla-session:${profileId}`) || "",
   );
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -57,7 +58,7 @@ export default function AgentPanel({
       .catch((e) => setError(e.message));
   }, []); // Initial session discovery only.
   useEffect(() => {
-    sessionStorage.setItem("dla-session", session);
+    sessionStorage.setItem(`dla-session:${profileId}`, session);
     setError("");
     if (session) {
       let active = true;

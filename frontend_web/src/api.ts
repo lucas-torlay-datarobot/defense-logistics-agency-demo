@@ -80,14 +80,13 @@ export type Overview = {
   orders: Row;
 };
 
-let token = sessionStorage.getItem("dla-access-token") || "";
-export const access = {
-  get: () => token,
-  set: (value: string) => {
-    token = value;
-    sessionStorage.setItem("dla-access-token", value);
-  },
-};
+// This ID separates demo memory. It is not a password or authenticated identity.
+const profileKey = "dla-demo-profile";
+export const profileId =
+  localStorage.getItem(profileKey) || crypto.randomUUID();
+localStorage.setItem(profileKey, profileId);
+sessionStorage.removeItem("dla-access-token");
+
 export async function api<T>(
   path: string,
   body?: unknown,
@@ -97,9 +96,7 @@ export async function api<T>(
     method: method || (body === undefined ? "GET" : "POST"),
     credentials: "same-origin",
     headers: {
-      // The DataRobot port-forwarding proxy owns platform authentication. Keep
-      // this workspace's access token out of its Authorization header.
-      "X-DLA-App-Token": token,
+      "X-DLA-Profile": profileId,
       Accept: "application/json",
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     },

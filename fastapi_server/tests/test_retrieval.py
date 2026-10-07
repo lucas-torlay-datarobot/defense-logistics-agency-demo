@@ -5,7 +5,7 @@ import pytest
 from app.main import create_app
 from dla_agent.retrieval import DataRobotRetriever, documents_from_response
 from fastapi.testclient import TestClient
-from test_app import AUTH, TOKEN, FakeLLM
+from test_app import AUTH, FakeLLM
 
 DEPLOYMENT = "0123456789abcdef01234567"
 
@@ -147,7 +147,7 @@ class RetrievalFixture:
 
 def chat_client(prepared, llm, retrieval):
     _, output = prepared
-    client = TestClient(create_app(output, TOKEN, llm, retrieval))
+    client = TestClient(create_app(output, llm=llm, retriever=retrieval))
     session = client.post("/api/v1/sessions", json={}, headers=AUTH).json()["id"]
     return client, session
 

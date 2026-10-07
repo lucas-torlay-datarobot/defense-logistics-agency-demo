@@ -11,8 +11,7 @@ from dla_agent.query import QueryService, validate_sql
 from dla_agent.service import Agent, DataRobotLLM
 from fastapi.testclient import TestClient
 
-TOKEN = "test-token-at-least-24-characters"
-AUTH = {"X-DLA-App-Token": TOKEN}
+AUTH = {"X-DLA-Profile": "12345678-1234-4234-8234-123456789abc"}
 
 
 class Unconfigured:
@@ -184,12 +183,12 @@ def test_agent_repairs_once_and_clarifies(prepared):
     assert len(llm.calls) == 2
 
 
-def test_api_auth_dashboard_and_unconfigured_llm(prepared):
+def test_no_login_dashboard_and_unconfigured_llm(prepared):
     _, output = prepared
-    client = TestClient(create_app(output, TOKEN, Unconfigured()))
+    client = TestClient(create_app(output, llm=Unconfigured()))
     assert client.get("/api/v1/health").status_code == 200
-    assert client.get("/api/v1/catalog").status_code == 401
-    assert client.post("/api/v1/query", json={"sql": "SELECT * FROM items"}).status_code == 401
+    assert client.get("/api/v1/catalog").status_code == 200
+    assert client.post("/api/v1/query", json={"sql": "SELECT * FROM items"}).status_code == 200
     assert client.get("/api/v1/catalog", headers=AUTH).json()["llm_configured"] is False
     overview = client.get("/api/v1/overview", headers=AUTH)
     assert overview.status_code == 200, overview.text
@@ -297,19 +296,61 @@ def test_external_access_disabled_at_engine_level(prepared):
             con.execute("SET enable_external_access=true")
 
 
-def test_app_token_independent_of_platform_authorization(prepared):
+def test_profile_scope_is_independent_of_platform_authorization(prepared, monkeypatch):
     _, output = prepared
-    client = TestClient(create_app(output, TOKEN, Unconfigured()))
-    # DataRobot may forward an unrelated platform credential. It cannot log into the app.
-    assert (
-        client.get("/api/v1/catalog", headers={"Authorization": f"Bearer {TOKEN}"}).status_code
-        == 401
-    )
-    assert (
-        client.get("/api/v1/catalog", headers={"X-DLA-App-Token": "wrong-token"}).status_code == 401
-    )
+    monkeypatch.setenv("DLA_APP_ACCESS_TOKEN", "old-unused-token")
+    client = TestClient(create_app(output, llm=Unconfigured()))
     forwarded = {**AUTH, "Authorization": "Bearer platform-session-credential"}
-    response = client.get("/api/v1/catalog", headers=forwarded)
-    assert response.status_code == 200
-    assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert client.get("/api/v1/catalog").status_code == 200
     assert client.post("/api/v1/sessions", headers=forwarded, json={}).status_code == 200
+    assert client.get("/api/v1/sessions", headers=AUTH).json()
+    assert client.get("/api/v1/sessions").status_code == 400
+    assert (
+        client.get("/api/v1/memories", headers={"X-DLA-Profile": "../../other"}).status_code == 400
+    )
+
+
+def test_browser_profiles_isolate_history_preferences_and_reviews(prepared):
+    _, output = prepared
+    other = {"X-DLA-Profile": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"}
+    llm = FakeLLM(
+        [
+            json.dumps(
+                {"status": "query", "message": "Count", "sql": "SELECT count(*) AS n FROM items"}
+            ),
+            "There are 2 simulated items.",
+        ]
+    )
+    client = TestClient(create_app(output, llm=llm))
+    session = client.post("/api/v1/sessions", headers=AUTH, json={}).json()["id"]
+    reply = client.post(
+        f"/api/v1/sessions/{session}/messages", headers=AUTH, json={"message": "Count items"}
+    ).json()
+    client.post("/api/v1/memories", headers=AUTH, json={"text": "Focus on Depot B"})
+    reviews = client.post(
+        "/api/v1/reviews", headers=AUTH, json={"session_id": session, "message_id": reply["id"]}
+    ).json()
+    assert client.get("/api/v1/sessions", headers=other).json() == []
+    assert client.get("/api/v1/memories", headers=other).json() == []
+    assert client.get("/api/v1/reviews", headers=other).json() == []
+    assert client.get(f"/api/v1/sessions/{session}", headers=other).status_code == 404
+    assert (
+        client.post(
+            f"/api/v1/sessions/{session}/messages", headers=other, json={"message": "hello"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.post(
+            "/api/v1/reviews",
+            headers=other,
+            json={"session_id": session, "message_id": reply["id"]},
+        ).status_code
+        == 400
+    )
+    client.delete(f"/api/v1/sessions/{session}", headers=other)
+    client.patch(f"/api/v1/reviews/{reviews[0]['id']}", headers=other, json={"status": "dismissed"})
+    restored = TestClient(create_app(output, llm=Unconfigured()))
+    assert len(restored.get(f"/api/v1/sessions/{session}", headers=AUTH).json()) == 2
+    assert restored.get("/api/v1/memories", headers=AUTH).json()[0]["text"] == "Focus on Depot B"
+    assert restored.get("/api/v1/reviews", headers=AUTH).json()[0]["status"] == "pending"

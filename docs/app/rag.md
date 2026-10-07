@@ -21,7 +21,7 @@ In DataRobot, open your Use Case → Vector databases → DLA_Supply_Chain_Proce
 ./.venv-dla/bin/python -I scripts/run_app.py --host 0.0.0.0 --port 8080
 ```
 
-The setup command changes only the two RAG IDs in `.env`, records the deployment ID under `artifacts/rag`, and runs a real test search. It preserves the app access token and existing LLM settings. It uses the same server-side `DATAROBOT_ENDPOINT` and `DATAROBOT_API_TOKEN` as the chat deployment. The account must have access to the retrieval deployment. It validates the deployment type; when attaching an existing deployment, the operator must select the one created from the stated vector database/version.
+The setup command changes only the two RAG IDs in `.env`, records the deployment ID under `artifacts/rag`, and runs a real test search. It preserves existing LLM settings. It uses the same server-side `DATAROBOT_ENDPOINT` and `DATAROBOT_API_TOKEN` as the chat deployment. The account must have access to the retrieval deployment. It validates the deployment type; when attaching an existing deployment, the operator must select the one created from the stated vector database/version.
 
 Alternatively, deploy the existing index through the SDK:
 
@@ -68,4 +68,4 @@ Automated tests cover the vendor request contract (serverless and dedicated), re
 - [Register and deploy vector databases](https://docs.datarobot.com/en/docs/agentic-ai/vector-database/vector-dbs-register-deploy.html).
 - [VectorDatabase.deploy SDK reference](https://docs.datarobot.com/en/docs/api/reference/sdk/gen-vector-databases.html).
 
-This remains a single-user workspace with shared access-token scope. Only add documents every workspace user is permitted to read. Multi-user document ACLs and per-user credential propagation require the identity work described in [architecture.md](architecture.md).
+This is a no-login demo with browser-scoped memory and shared reference documents. Browser profiles are not authenticated identities. Only add documents every workspace user is permitted to read. Multi-user document ACLs and per-user credential propagation require the identity work described in [architecture.md](architecture.md).

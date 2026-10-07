@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Database,
   LayoutDashboard,
-  LogOut,
   Moon,
   Play,
   ShieldCheck,
@@ -16,10 +15,8 @@ import {
   BookmarkCheck,
   Brain,
   Trash2,
-  KeyRound,
 } from "lucide-react";
 import {
-  access,
   api,
   depot,
   number,
@@ -54,70 +51,7 @@ const presets = {
   "Shortage frequency":
     "SELECT location, count(*) AS item_days, count(*) FILTER (WHERE unfulfilled_quantity > 0) AS shortage_item_days, round(100.0 * count(*) FILTER (WHERE unfulfilled_quantity > 0) / count(*), 2) AS shortage_percent FROM daily_inventory GROUP BY location ORDER BY shortage_percent DESC",
 };
-function Login({ onConnect }: { onConnect: (token: string) => Promise<void> }) {
-  const [token, setToken] = useState(access.get());
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="login-screen">
-      <form
-        className="login-card"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          try {
-            await onConnect(token);
-          } catch (e) {
-            setError((e as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <div className="brand-icon">
-          <Boxes size={26} />
-        </div>
-        <span className="eyebrow">DLA • Logistics Intelligence</span>
-        <h1>
-          Know where to
-          <br />
-          look next.
-        </h1>
-        <p>
-          A workspace for inventory, incoming supply, and model-informed
-          shortage review.
-        </p>
-        <label htmlFor="access">Workspace access token</label>
-        <div className="token-field">
-          <KeyRound size={17} />
-          <input
-            id="access"
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="DLA_APP_ACCESS_TOKEN"
-            required
-          />
-        </div>
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        <button className="button primary" disabled={busy}>
-          {busy ? "Connecting…" : "Open workspace"}
-          <ArrowUpRight size={17} />
-        </button>
-        <div className="note">
-          Synthetic operations • real catalog identities
-          <br />
-          Single-user demonstration workspace
-        </div>
-      </form>
-    </div>
-  );
-}
+
 function Stat({
   name,
   value,
@@ -210,8 +144,8 @@ export default function App() {
     document.documentElement.dataset.theme = light ? "light" : "dark";
     localStorage.setItem("dla-theme", light ? "light" : "dark");
   }, [light]);
-  async function connect(token: string) {
-    access.set(token);
+  async function connect() {
+    setError("");
     const [c, o] = await Promise.all([
       api<Catalog>("catalog"),
       api<Overview>("overview"),
@@ -219,6 +153,9 @@ export default function App() {
     setCatalog(c);
     setOverview(o);
   }
+  useEffect(() => {
+    void connect().catch((e) => setError(e.message));
+  }, []);
   const refreshReviews = useCallback(() => {
     api<Review[]>("reviews")
       .then(setReviews)
@@ -264,7 +201,23 @@ export default function App() {
     }
   }
   const pending = reviews.filter((r) => r.status === "pending").length;
-  if (!catalog || !overview) return <Login onConnect={connect} />;
+  if (!catalog || !overview)
+    return (
+      <div className="login-screen">
+        <div className="login-card">
+          <h1>DLA Logistics Intelligence</h1>
+          <p>{error || "Opening your demo workspace…"}</p>
+          {error && (
+            <button
+              className="button primary"
+              onClick={() => void connect().catch((e) => setError(e.message))}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </div>
+    );
   return (
     <div className={`app ${agentOpen ? "" : "agent-closed"}`}>
       <header className="app-header">
@@ -296,17 +249,9 @@ export default function App() {
           >
             <Sparkles size={15} /> Ask DLA
           </button>
-          <button
-            className="icon-button"
-            aria-label="Lock workspace"
-            onClick={() => {
-              access.set("");
-              setCatalog(null);
-            }}
-          >
-            <LogOut size={16} />
-          </button>
-          <span className="avatar">OP</span>
+          <span className="avatar" title="This browser’s demo profile">
+            OP
+          </span>
         </div>
       </header>
       <div className="context-strip">
@@ -629,7 +574,7 @@ export default function App() {
                 <div>
                   <h2>Remembered preferences</h2>
                   <p>
-                    You choose what persists across conversations. Preferences
+                    Saved for this browser across conversations. Preferences
                     provide context; they do not override data or query
                     restrictions.
                   </p>
@@ -756,7 +701,7 @@ export default function App() {
               </ul>
               <p className="note">
                 Memory is saved in this workspace’s persistent storage. This
-                build is a single-user Codespace app; a shared production
+                build is a browser-profile Codespace app; a shared production
                 deployment needs identity-scoped storage and access controls.
               </p>
             </section>

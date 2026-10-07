@@ -9,7 +9,7 @@ The app supports:
 - Adaptable questions and follow-ups: an LLM generates SQL against the available schema, a bounded read-only tool executes it, and the answer includes the actual rows, SQL, date and source provenance.
 - Persistent conversations, explicit saved preferences, and an evidence review queue. Saving a review does not place an order or move stock.
 
-All operations and model results remain prominently marked **synthetic**. This is a single-user demonstration, not a production inventory system or a Databricks Genie integration.
+All operations and model results remain prominently marked **synthetic**. This is a browser-profile demonstration, not a production inventory system or a Databricks Genie integration.
 
 ## 1. Pull and install in the existing Codespace environment
 
@@ -61,16 +61,11 @@ DATAROBOT_ENDPOINT=https://YOUR-TENANT/api/v2
 DATAROBOT_API_TOKEN=YOUR_SERVER_SIDE_API_TOKEN
 DLA_LLM_DEPLOYMENT_ID=YOUR_CHAT_CAPABLE_LLM_DEPLOYMENT_ID
 DLA_LLM_MODEL=datarobot-deployed-llm
-DLA_APP_ACCESS_TOKEN=YOUR_RANDOM_APP_ACCESS_TOKEN_AT_LEAST_24_CHARACTERS
 ```
 
-Generate an app access token in your terminal, then put the result in `DLA_APP_ACCESS_TOKEN`:
+The app opens directly to the dashboard: no app token, username, or login screen. Each browser automatically creates a local demo profile ID. Conversations, saved preferences, and reviews are stored on the server under that profile. Reloads and server restarts retain memory; another browser or private window starts separately. Browser storage is specific to the app origin, so a changed Codespace URL may start a fresh profile. This is demo organization, not authenticated user identity. DataRobot API credentials still stay in the Python server.
 
-```bash
-./.venv-dla/bin/python -I -c 'import secrets; print(secrets.token_urlsafe(32))'
-```
-
-Browser requests send the app access token in `X-DLA-App-Token`, leaving DataRobot platform authentication and same-origin session cookies intact. The app access token is **not** your DataRobot API token. Only enter the app access token in the browser. DataRobot credentials remain in the Python server. The LLM adapter expects the explicit environment variables above, even if the predictive SDK can authenticate from a separate SDK configuration file.
+Existing `DLA_APP_ACCESS_TOKEN` settings are ignored and can be left in `.env`. The former shared `artifacts/app/memory.sqlite3` is preserved on disk but is not automatically assigned to any browser; new profiles start with fresh history. New memory is stored in `artifacts/app/profiles/<profile-id>/memory.sqlite3`. Clearing browser storage loses that browser's pointer to its profile, not the server files.
 
 The server uses the documented OpenAI-compatible endpoint:
 `{DATAROBOT_ENDPOINT}/deployments/{DLA_LLM_DEPLOYMENT_ID}/chat/completions`.
@@ -84,7 +79,7 @@ Official API reference: [DataRobot LLM providers](https://docs.datarobot.com/en/
 ./.venv-dla/bin/python -I scripts/run_app.py --host 0.0.0.0 --port 8080
 ```
 
-In **Session Environment → Exposed ports**, add port **8080** if it is missing (DataRobot requires the session to be stopped while changing exposed ports), then restart the session and run the server command above. Click **Link** beside port **8080** to open the app in a new tab. Paste `DLA_APP_ACCESS_TOKEN` on the welcome screen. Keep this terminal running. The token is stored in browser session storage; locking the workspace clears it. The UI and API share one port. Binding `0.0.0.0` permits Codespace port forwarding; use the default localhost binding for local-only access.
+In **Session Environment → Exposed ports**, add port **8080** if it is missing (DataRobot requires the session to be stopped while changing exposed ports), then restart the session and run the server command above. Click **Link** beside port **8080** to open the app in a new tab. The dashboard opens immediately. Keep this terminal running. The UI and API share one port. Binding `0.0.0.0` permits Codespace port forwarding; use the default localhost binding for local-only access.
 
 Start with these questions:
 
@@ -112,7 +107,7 @@ This commit provides the runnable Codespace application. It does not create a ho
 
 ## Troubleshooting
 
-- **Browser shows HTTP 428:** older app builds put the app token in the platform's `Authorization` header. Pull the latest code, rebuild React, restart the Python process and hard-refresh the browser. Keep the existing app token. If 428 persists, reopen the current exposed-port link and inspect the failed request path/status/response in browser Developer Tools → Network. Share only those details, never tokens or cookies; a 428 alone does not identify the platform's exact precondition.
+- **Browser shows HTTP 428:** older app builds put the app token in the platform's `Authorization` header. Pull the latest code, rebuild React, restart the Python process and hard-refresh the browser. If 428 persists, reopen the current exposed-port link and inspect the failed request path/status/response in browser Developer Tools → Network. Share only those details, never tokens or cookies; a 428 alone does not identify the platform's exact precondition.
 - **No probability values:** run preparation with `--score`. Training success alone does not populate current app scores.
 - **LLM HTTP 401/403:** check the server token, tenant, and deployment access. **404/405:** confirm this is a chat-capable LLM deployment and the endpoint ends in `/api/v2`.
 - **SQL rejected:** queries are intentionally limited to the five published tables and safe analytical functions; external files, recursive queries, writes, and administrative functions are unavailable. Narrow the question or inspect the schema under Explore.
