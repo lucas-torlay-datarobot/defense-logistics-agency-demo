@@ -22,6 +22,11 @@ class GuardUnavailable(RuntimeError):
     pass
 
 
+class GuardHTTPError(RuntimeError):
+    def __init__(self, status, body):
+        self.status, self.body = status, body
+
+
 class PromptBlocked(RuntimeError):
     pass
 
@@ -94,9 +99,21 @@ class DataRobotPromptGuard:
             logger.warning(
                 "prompt_guard unavailable stage=%s error_type=%s", stage, type(exc).__name__
             )
-            raise GuardUnavailable(
-                f"Prompt safety check unavailable during {stage}. No agent processing occurred. Run scripts/check_prompt_guard.py in the Codespace."
-            ) from None
+            status = f" (HTTP {exc.status})" if isinstance(exc, GuardHTTPError) else ""
+            error = GuardUnavailable(
+                f"Prompt safety check unavailable during {stage}{status}. No agent processing occurred. Run scripts/check_prompt_guard.py in the Codespace."
+            )
+            if isinstance(exc, GuardHTTPError):
+                # Only the operator check script prints this diagnostic. Runtime chat
+                # receives str(error), never the upstream body.
+                detail = exc.body
+                for secret in (self.token, locals().get("headers", {}).get("datarobot-key"), text):
+                    if secret:
+                        detail = detail.replace(secret, "[redacted]")
+                detail = re.sub(r"https?://[^\s\"<>]+", "[URL]", detail)
+                detail = "".join(c for c in detail if c.isprintable() or c in "\n\t")
+                error.diagnostic = detail[:2500]
+            raise error from None
 
     def check(self, text):
         score = self.score(text)
@@ -117,10 +134,27 @@ class DataRobotPromptGuard:
     @staticmethod
     def _json(client, method, url, **kwargs):
         with client.stream(method, url, **kwargs) as response:
-            response.raise_for_status()
             content = bytearray()
             for block in response.iter_bytes():
                 content.extend(block)
                 if len(content) > 100_000:
                     raise ValueError("Guard response too large")
+            if response.status_code != 200:
+                # Prefer structured error details over HTML error pages.
+                try:
+                    body = json.loads(content)
+                    if isinstance(body, dict):
+                        detail = {
+                            k: body[k]
+                            for k in ("message", "error", "errors", "detail")
+                            if k in body
+                        }
+                        body = (
+                            json.dumps(detail) if detail else "No structured error detail supplied."
+                        )
+                    else:
+                        body = "No structured error detail supplied."
+                except ValueError:
+                    body = "Non-JSON error response. Check deployment service health."
+                raise GuardHTTPError(response.status_code, body)
             return json.loads(content)

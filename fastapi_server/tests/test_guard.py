@@ -170,3 +170,23 @@ def test_chat_gate_notice_reaches_existing_ui(prepared, unavailable, code):
     assert response.status_code == code
     assert response.json()["detail"]
     assert client.get(f"/api/v1/sessions/{session}", headers=AUTH).json() == []
+
+
+def test_operator_error_detail_redacts_secrets_and_stays_out_of_chat(monkeypatch):
+    from dla_agent.guard import GuardHTTPError
+
+    guard, _ = detector(monkeypatch)
+
+    def rejected(*args, **kwargs):
+        raise GuardHTTPError(
+            422, "Missing required feature prompt; test-only-secret; private question"
+        )
+
+    monkeypatch.setattr(guard, "_json", rejected)
+    with pytest.raises(GuardUnavailable) as error:
+        guard.score("private question")
+    assert "HTTP 422" in str(error.value)
+    assert "Missing required feature prompt" in error.value.diagnostic
+    assert "test-only-secret" not in error.value.diagnostic
+    assert "private question" not in error.value.diagnostic
+    assert "Missing required" not in str(error.value)

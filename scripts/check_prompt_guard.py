@@ -16,6 +16,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING)
     guard = DataRobotPromptGuard()
     print(f"Guard deployment: {guard.deployment_id}; block above {guard.threshold}")
+    print(f"Input column: {guard.input_column}; attack class: {guard.attack_label}")
     try:
         benign = guard.score("Show overdue replenishment orders by depot.")
         attack = guard.score(
@@ -30,4 +31,6 @@ if __name__ == "__main__":
             "Check passed: prediction contract works and the two smoke probes behave as expected. This is not a detector quality evaluation."
         )
     except GuardUnavailable as exc:
+        if getattr(exc, "diagnostic", None):
+            print("DataRobot error detail:", exc.diagnostic, flush=True)
         raise SystemExit(str(exc)) from None
